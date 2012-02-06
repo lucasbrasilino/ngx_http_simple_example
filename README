@@ -1,0 +1,28 @@
+ngx_http_simple_example
+=======================
+
+A simple handler example module for nginx.
+
+1) Compiling
+As usually, compile nginx with --add-module option:
+
+	./configure --add-module=/path/to/ngx_http_simple_module
+
+2) Configuring
+Two directives are supported
+
+	* simple_example
+		Activates the module in a given location context.
+
+	* simple_example_content
+		Setup HTML page content
+
+	Examples:
+
+	location /simple {
+		simple_example;
+	}
+
+	location /same {
+		simple_example;
+		simple_example_content "<html><body><h1>Always same content</h1></body></html>"
