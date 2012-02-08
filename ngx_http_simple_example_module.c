@@ -15,7 +15,7 @@ static char *ngx_http_simple_example_merge_loc_conf(ngx_conf_t *cf, void *parent
 /* Module configuration */
 
 typedef struct {
-  ngx_flag_t enabled;
+  ngx_flag_t addlm;
   ngx_str_t respbody;
 } ngx_http_simple_example_loc_conf_t;
 
@@ -31,6 +31,12 @@ static ngx_command_t  ngx_http_simple_example_commands[] = {
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_simple_example_loc_conf_t, respbody),
+      NULL },
+    { ngx_string("simple_example_last_modified"),
+      NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_simple_example_loc_conf_t, addlm),
       NULL },
       ngx_null_command
 };
@@ -82,10 +88,9 @@ ngx_http_simple_example_handler(ngx_http_request_t *r)
     ngx_buf_t    *b;
     ngx_chain_t   out;
     ngx_str_t mimetype = { sizeof("text/html") -1, (u_char *)"text/html" };
-    ngx_http_simple_example_loc_conf_t *simple_example_conf;
+    ngx_http_simple_example_loc_conf_t *conf;
     
-    simple_example_conf = 
-      ngx_http_get_module_loc_conf(r,ngx_http_simple_example_module); 
+    conf = ngx_http_get_module_loc_conf(r,ngx_http_simple_example_module); 
 
     if (!(r->method & NGX_HTTP_GET)) {
         return NGX_HTTP_NOT_ALLOWED;
@@ -93,17 +98,20 @@ ngx_http_simple_example_handler(ngx_http_request_t *r)
 
     r->headers_out.status = NGX_HTTP_OK;
     r->headers_out.content_type = mimetype;
-    r->headers_out.content_length_n = simple_example_conf->respbody.len;
-    
+    r->headers_out.content_length_n = conf->respbody.len;
+
+    if (conf->addlm) {
+      r->headers_out.last_modified_time = ngx_time();
+    }     
+
     b = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
     if (b == NULL) {
 	ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Failed to allocate response buffer.");
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    b->pos = simple_example_conf->respbody.data;
-    b->last = simple_example_conf->respbody.data + 
-      simple_example_conf->respbody.len;
+    b->pos = conf->respbody.data;
+    b->last = conf->respbody.data + conf->respbody.len;
     
     b->memory = 1;
     b->last_buf = 1;
@@ -122,31 +130,31 @@ ngx_http_simple_example_handler(ngx_http_request_t *r)
 static void *
 ngx_http_simple_example_create_loc_conf(ngx_conf_t *cf)
 {
-  ngx_http_simple_example_loc_conf_t *simple_example_conf;
+  ngx_http_simple_example_loc_conf_t *conf;
 
-  simple_example_conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_simple_example_loc_conf_t));
-  if (simple_example_conf == NULL) {
+  conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_simple_example_loc_conf_t));
+  if (conf == NULL) {
     return NGX_CONF_ERROR;
   }
   
-  simple_example_conf->enabled = -1;
-  simple_example_conf->respbody.data = NULL;
-  simple_example_conf->respbody.len = -1;
-  return simple_example_conf;
+  conf->addlm = NGX_CONF_UNSET;
+  return conf;
 }
 
 static char *
 ngx_http_simple_example_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 {
   ngx_http_simple_example_loc_conf_t *prev = parent;
-  ngx_http_simple_example_loc_conf_t *simple_example_conf = child;
+  ngx_http_simple_example_loc_conf_t *conf = child;
 
-  ngx_conf_merge_str_value (simple_example_conf->respbody, prev->respbody,
+  ngx_conf_merge_str_value (conf->respbody, prev->respbody,
 			    "<html><head><title>Simple Example</title></head>\n"
 			    "<body><h1>Default Page</h1>"
 			    "<p><tt>simple_page_content</tt> not set</p>"
 			    "</body>\n"
-			    "</html>");  
+			    "</html>");
+  ngx_conf_merge_value (conf->addlm, prev->addlm, 0);
+  
   return NGX_CONF_OK;
 }
 
